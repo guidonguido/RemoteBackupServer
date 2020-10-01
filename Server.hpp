@@ -31,7 +31,27 @@ class Server {
 
         std::optional<User> logged_user;
 
-        void process_command(const std::string& cmd){
+        // Separate command from its argument
+        std::vector<std::string> parse_command(const std::string cmd){
+            size_t prev = 0, pos = 0;
+            std::vector<std::string> tokens;
+            do
+            {
+                pos = cmd.find(" ", prev);
+                if (pos == std::string::npos) pos = cmd.length();
+                std::string token = cmd.substr(prev, pos-prev);
+                if (!token.empty()) tokens.push_back(token);
+                prev = pos + std::string(" ").length();
+            }while (pos < cmd.length() && prev < cmd.length());
+
+            if(tokens.size() > 0)
+                return tokens;
+        }
+
+        void process_command(std::string& cmd){
+
+            std::vector<std::string> arguments = parse_command(cmd);
+            cmd = arguments[0];
 
             if(cmd == "stop") {
                 server_.stop();
@@ -42,16 +62,27 @@ class Server {
                 return;
             }
 
+
             if(!logged_user.has_value()){
                 if(cmd == "login"){
 
-                    // logged_user = User::check_login()
+                    if(arguments.size() == 3){
+                        std::string username = arguments[1];
+                        std::string password = arguments[2];
+                        // logged_user = User::check_login()
 
-                    server_.io_context.post([this](){
-                        handle_read();
-                    });
-                    return;
-                }
+                        server_.io_context.post([this](){
+                            handle_read();
+                        });
+                        return;
+                    }else{
+                        write_("Login format is incorrect, try again inserting both username and password\n");
+                        server_.io_context.post([this](){
+                            handle_read();
+                        });
+                    }//if-else
+                }//if(login)
+
                 write_("Login needed to use the Back-up Server\n");
 
                 // richiedi al context di eseguire una nuova read
@@ -62,23 +93,28 @@ class Server {
                 });
             } else{
                 // Post new function to execute to server pool
-                boost::asio::post(server_.pool, [this, cmd] {
-                    std::ostringstream oss;
-                    oss << "[+] Server executing response on thread #" << std::this_thread::get_id() << std::endl;
-                    write_(oss.str());
-                    for(int i=0; i < 123; i++){
-                        write_("Hello, "+cmd+" "+std::to_string(i+1)+"\r\n");
-                    }
-
-                    // richiedi al context di eseguire una nuova read
-                    // dopo aver dato la risposta al command
-                    // si comporta come un pool di thread
-                    server_.io_context.post([this](){
-                        handle_read();
+                if(arguments.size() > 1){
+                    std::string argument = arguments[1];
+                    boost::asio::post(server_.pool, [this, cmd, argument] {
+                        std::ostringstream oss;
+                        oss << "[+] Server executing response on thread #" << std::this_thread::get_id() << std::endl;
+                        oss << "[+] The command " << cmd << " is not known. But you can join this Hello messages" << std::endl;
+                        write_(oss.str());
+                        for(int i=0; i < 123; i++){
+                            write_("Hello, "+cmd+" "+argument+std::to_string(i+1)+"\r\n");
+                        }
                     });
-                });
+                } else{
+                    write_("You should insert at least one argument for the inserted command\n");
+                }
 
-            }
+                // richiedi al context di eseguire una nuova read
+                // dopo aver dato la risposta al command
+                // si comporta come un pool di thread
+                server_.io_context.post([this](){
+                    handle_read();
+                });
+            }//if(logged_user_command)
 
         }
 
