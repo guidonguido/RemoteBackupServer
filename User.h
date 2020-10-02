@@ -19,9 +19,11 @@ class User {
 public:
     User(const User&& other);
 
+    std::string get_username() const;
+
     void set_folder_path(const std::string&& path);
 
-    static std::optional<User> check_login(const std::string&& username, const std::string&& password);
+    static std::optional<std::reference_wrapper<User>> check_login(const std::string&& username, const std::string&& password);
 };
 
 

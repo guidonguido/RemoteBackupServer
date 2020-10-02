@@ -10,12 +10,16 @@ User::User(const std::string username, std::filesystem::path folder_path):
 
 User::User(const User &&other): username(std::move(other.username)), folder_path(std::move(other.folder_path)) {}
 
+std::string User::get_username() const {
+    return this->username;
+}
+
 void User::set_folder_path(const std::string &&path) {
         folder_path = path;
 }
 
-std::optional<User> User::check_login(const std::string &&username, const std::string &&password) {
-    std::ifstream ifile("./user_info/login_info.txt");
+std::optional<std::reference_wrapper<User>> User::check_login(const std::string&& username, const std::string&& password) {
+    std::ifstream ifile("../user_info/login_info");
     std::string line;
     std::size_t pos;
 
@@ -35,7 +39,7 @@ std::optional<User> User::check_login(const std::string &&username, const std::s
             path_ = line.substr(line.find_first_not_of(' '), line.find(' '));
             ifile.close();
             User found_user(username_, std::filesystem::path(path_));
-            return std::move(found_user);
+            return found_user;
         }
     }
 

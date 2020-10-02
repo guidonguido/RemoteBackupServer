@@ -9,8 +9,11 @@
 #include <unordered_set>
 #include "User.h"
 
-// TO-DO-NEXT Separa l'oggetto del comando dal comando ricevuto ;)
-// E cerca di estrarre un user dalla tabella LOGIN_INFO
+// Separa l'oggetto del comando dal comando ricevuto ;)
+// Cerca di estrarre un user dalla tabella LOGIN_INFO -- Fatto. Login implementato
+
+// TO-DO-NEXT Decidere che fomato devono avere le info sul filesystem
+// Decidere come trasferire i file
 
 class Server {
 
@@ -29,7 +32,7 @@ class Server {
         bool closed_ = false;
         boost::asio::deadline_timer read_timer_, write_timer_;
 
-        std::optional<User> logged_user;
+        std::optional<std::reference_wrapper<User>> logged_user;
 
         // Separate command from its argument
         std::vector<std::string> parse_command(const std::string cmd){
@@ -69,21 +72,26 @@ class Server {
                     if(arguments.size() == 3){
                         std::string username = arguments[1];
                         std::string password = arguments[2];
-                        // logged_user = User::check_login()
+                        logged_user = User::check_login(std::move(username), std::move(password));
+                        if(logged_user.has_value()){
+                            write_("Login SUCCESS\n[" + logged_user->get().get_username() + "] >> ");
+                        }else{
+                            write_("Login FAILED, try again inserting correct username and password\n>> ");
+                        }
 
                         server_.io_context.post([this](){
                             handle_read();
                         });
                         return;
                     }else{
-                        write_("Login format is incorrect, try again inserting both username and password\n");
+                        write_("Login format is incorrect, try again inserting both username and password\n>> ");
                         server_.io_context.post([this](){
                             handle_read();
                         });
                     }//if-else
                 }//if(login)
 
-                write_("Login needed to use the Back-up Server\n");
+                write_("Login needed to use the Back-up Server\n>> ");
 
                 // richiedi al context di eseguire una nuova read
                 // dopo aver dato la risposta al command
@@ -101,11 +109,12 @@ class Server {
                         oss << "[+] The command " << cmd << " is not known. But you can join this Hello messages" << std::endl;
                         write_(oss.str());
                         for(int i=0; i < 123; i++){
-                            write_("Hello, "+cmd+" "+argument+std::to_string(i+1)+"\r\n");
+                            write_("Hello, "+cmd+" "+argument+" " +std::to_string(i+1)+"\r\n");
                         }
+                        write_(">> ");
                     });
                 } else{
-                    write_("You should insert at least one argument for the inserted command\n");
+                    write_("You should insert at least one argument for the inserted command\n>> ");
                 }
 
                 // richiedi al context di eseguire una nuova read
@@ -191,6 +200,7 @@ class Server {
             oss << "\t login [username] [password] -- login to the Back-up Server " << std::endl;
             oss << "\t close                       -- close the connetion to Server" << std::endl;
             oss << "\t stop                        -- stop the Server" << std::endl;
+            oss << ">> ";
             write_(oss.str());
             handle_read();
         }

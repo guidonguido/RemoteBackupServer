@@ -5,4 +5,4 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS -pthread )
 
 
-add_executable(RemoteBackup_Server main.cpp)
+add_executable(RemoteBackup_Server User.cpp main.cpp)
