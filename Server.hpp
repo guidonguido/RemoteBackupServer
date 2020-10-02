@@ -4,6 +4,8 @@
 #pragma once
 
 #include <iostream>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <unordered_set>
@@ -13,7 +15,10 @@
 // Cerca di estrarre un user dalla tabella LOGIN_INFO -- Fatto. Login implementato
 
 // TO-DO-NEXT Decidere che fomato devono avere le info sul filesystem
+// IDEA: Tree di directory_entry + checksum (o file_status)
 // Decidere come trasferire i file
+
+// Aggiungere lettura di un Oggetto serializzato header + data (se necessario)
 
 class Server {
 
@@ -226,12 +231,35 @@ class Server {
             }
         }
 
-        void write_(std::string&& data){
+        template <typename T>
+        void write_(T&& t){
+            // Serialize the data first so we know how large it is.
+            std::ostringstream archive_stream;
+            boost::archive::text_oarchive archive(archive_stream);
+            archive << t;
+            std::string outbound_data_ = archive_stream.str();
+
+            // Format the header.
+            std::ostringstream header_stream;
+            header_stream << std::setw(8)
+                          << std::hex << outbound_data_.size();
+            std::string outbound_header_ = header_stream.str();
+
+            std::lock_guard l(buffers_mtx_);
+            buffers_[active_buffer_^1].push_back(std::move(outbound_header_));
+            buffers_[active_buffer_^1].push_back(std::move(outbound_data_));
+            if(!writing())
+                handle_write();
+        }
+
+        template <>
+        void write_<std::string>(std::string&& data){
             std::lock_guard l(buffers_mtx_);
             buffers_[active_buffer_^1].push_back(std::move(data));
             if(!writing())
                 handle_write();
         }
+
     }; //connection_handler
 
     boost::asio::thread_pool pool;
