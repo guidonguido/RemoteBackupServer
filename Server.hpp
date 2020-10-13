@@ -6,9 +6,15 @@
 #include <iostream>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/impl/basic_text_oarchive.ipp>
+#include <boost/archive/impl/text_oarchive_impl.ipp>
+#include <boost/archive/basic_text_oprimitive.hpp>
+
+#include <boost/serialization/unordered_map.hpp>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <unordered_set>
+#include <dlfcn.h>
 #include "User.h"
 
 // Separa l'oggetto del comando dal comando ricevuto ;)
@@ -79,9 +85,9 @@ class Server {
                         std::string password = arguments[2];
                         logged_user = User::check_login(std::move(username), std::move(password));
                         if(logged_user.has_value()){
-                            write_("Login SUCCESS\n[" + logged_user->get().get_username() + "] >> ");
+                            write_str("Login SUCCESS\n[" + logged_user->get().get_username() + "] >> ");
                         }else{
-                            write_("Login FAILED, try again inserting correct username and password\n>> ");
+                            write_str("Login FAILED, try again inserting correct username and password\n>> ");
                         }
 
                         server_.io_context.post([this](){
@@ -89,14 +95,14 @@ class Server {
                         });
                         return;
                     }else{
-                        write_("Login format is incorrect, try again inserting both username and password\n>> ");
+                        write_str("Login format is incorrect, try again inserting both username and password\n>> ");
                         server_.io_context.post([this](){
                             handle_read();
                         });
                     }//if-else
                 }//if(login)
 
-                write_("Login needed to use the Back-up Server\n>> ");
+                write_str("Login needed to use the Back-up Server\n>> ");
 
                 // richiedi al context di eseguire una nuova read
                 // dopo aver dato la risposta al command
@@ -106,20 +112,31 @@ class Server {
                 });
             } else{
                 // Post new function to execute to server pool
-                if(arguments.size() > 1){
+                if(cmd == "checkFilesystemStatus"){
+                    boost::asio::post(server_.pool, [this] {
+                        std::ostringstream oss;
+                        //write_(logged_user.value().get().get_filesystem_status());
+                        boost::unordered_map<std::basic_string<char>, boost::filesystem::directory_entry> x =
+                                logged_user.value().get().get_filesystem_status();
+                        // write_(logged_user.value().get().get_filesystem_status());
+                        write_str(">> ");
+                    });
+                }
+                else if(arguments.size() > 1){
                     std::string argument = arguments[1];
                     boost::asio::post(server_.pool, [this, cmd, argument] {
                         std::ostringstream oss;
                         oss << "[+] Server executing response on thread #" << std::this_thread::get_id() << std::endl;
                         oss << "[+] The command " << cmd << " is not known. But you can join this Hello messages" << std::endl;
-                        write_(oss.str());
+                        write_str(oss.str());
                         for(int i=0; i < 123; i++){
-                            write_("Hello, "+cmd+" "+argument+" " +std::to_string(i+1)+"\r\n");
+                            write_str("Hello, "+cmd+" "+argument+" " +std::to_string(i+1)+"\r\n");
                         }
-                        write_(">> ");
+                        write_str(">> ");
                     });
-                } else{
-                    write_("You should insert at least one argument for the inserted command\n>> ");
+                }
+                else{
+                    write_str("You should insert at least one argument for the desired command\n>> ");
                 }
 
                 // richiedi al context di eseguire una nuova read
@@ -206,7 +223,7 @@ class Server {
             oss << "\t close                       -- close the connetion to Server" << std::endl;
             oss << "\t stop                        -- stop the Server" << std::endl;
             oss << ">> ";
-            write_(oss.str());
+            write_str(oss.str());
             handle_read();
         }
 
@@ -231,6 +248,7 @@ class Server {
             }
         }
 
+
         template <typename T>
         void write_(T&& t){
             // Serialize the data first so we know how large it is.
@@ -252,8 +270,7 @@ class Server {
                 handle_write();
         }
 
-        template <>
-        void write_<std::string>(std::string&& data){
+        void write_str (std::string&& data){
             std::lock_guard l(buffers_mtx_);
             buffers_[active_buffer_^1].push_back(std::move(data));
             if(!writing())
