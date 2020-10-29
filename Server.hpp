@@ -14,7 +14,6 @@
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <unordered_set>
-#include <dlfcn.h>
 #include "User.h"
 
 // Separa l'oggetto del comando dal comando ricevuto ;)
@@ -22,7 +21,6 @@
 
 // TO-DO-NEXT Decidere che fomato devono avere le info sul filesystem
 // IDEA: Tree di directory_entry + checksum (o file_status)
-// Decidere come trasferire i file
 
 // Aggiungere lettura di un Oggetto serializzato header + data (se necessario)
 
@@ -115,10 +113,7 @@ class Server {
                 if(cmd == "checkFilesystemStatus"){
                     boost::asio::post(server_.pool, [this] {
                         std::ostringstream oss;
-                        //write_(logged_user.value().get().get_filesystem_status());
-                        boost::unordered_map<std::basic_string<char>, boost::filesystem::directory_entry> x =
-                                logged_user.value().get().get_filesystem_status();
-                        // write_(logged_user.value().get().get_filesystem_status());
+                        write_(logged_user.value().get().get_filesystem_status());
                         write_str(">> ");
                     });
                 }

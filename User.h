@@ -9,11 +9,11 @@
 #include <fstream>
 #include <string>
 #include <optional>
-#include <boost/unordered_map.hpp>
+#include <unordered_map>
 #include <boost/filesystem/path.hpp>
 
 class User {
-    boost::filesystem::path folder_path;
+    std::filesystem::path folder_path;
     std::string username;
 
     User(const std::string username, std::filesystem::path folder_path);
@@ -25,7 +25,7 @@ public:
 
     void set_folder_path(const std::string&& path);
 
-    boost::unordered_map<std::string, boost::filesystem::directory_entry> get_filesystem_status();
+    std::unordered_map<std::string, int> get_filesystem_status();
 
     static std::optional<std::reference_wrapper<User>> check_login(const std::string&& username, const std::string&& password);
 };

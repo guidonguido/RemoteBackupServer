@@ -19,11 +19,12 @@ void User::set_folder_path(const std::string &&path) {
         folder_path = path;
 }
 
-boost::unordered_map<std::string, boost::filesystem::directory_entry> User::get_filesystem_status() {
-    boost::unordered_map<std::string, boost::filesystem::directory_entry> status;
-    for(auto entry: boost::filesystem::recursive_directory_iterator(this->folder_path))
-        status[entry.path().filename().string()] = entry;
-    status["ciao"];
+std::unordered_map<std::string, int> User::get_filesystem_status() {
+    // boost::unordered_map<std::string, boost::filesystem::directory_entry> status;
+    std::unordered_map<std::string, int> status;
+    // for(auto entry: std::filesystem::recursive_directory_iterator(this->folder_path))
+    for(auto entry: std::filesystem::recursive_directory_iterator("../synchronized_folders/guido"))
+        status[entry.path().filename()] = 1;
     return status;
 }
 
