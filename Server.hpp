@@ -22,6 +22,8 @@
 // TO-DO-NEXT Decidere che fomato devono avere le info sul filesystem
 // IDEA: Tree di directory_entry + checksum (o file_status)
 
+// TO-DO Completa lettura file nella funzione process_addFile
+
 // Aggiungere lettura di un Oggetto serializzato header + data (se necessario)
 
 class Server {
@@ -43,6 +45,25 @@ class Server {
 
         std::optional<std::reference_wrapper<User>> logged_user;
 
+        //Enum representing known commands
+        enum command_code{
+            addFile,
+            updateFile,
+            removeFile,
+            checkFilesystemStatus,
+            checkFileVersion,
+            unknown
+        };
+
+        command_code hashit(std::string const& command){
+            if(command == "addFile") return addFile;
+            if(command == "updateFile") return updateFile;
+            if(command == "removeFile") return removeFile;
+            if(command == "checkFilesystemStatus") return checkFilesystemStatus;
+            if(command == "checkFileVersion") return checkFileVersion;
+            return unknown;
+        }
+
         // Separate command from its argument
         std::vector<std::string> parse_command(const std::string cmd){
             size_t prev = 0, pos = 0;
@@ -58,6 +79,27 @@ class Server {
 
             if(tokens.size() > 0)
                 return tokens;
+        }
+
+        void process_unknown(const std::string& cmd, const std::string& argument){
+            boost::asio::post(server_.pool, [this, cmd, argument] {
+                std::ostringstream oss;
+                oss << "[+] Server executing response on thread #" << std::this_thread::get_id() << std::endl;
+                oss << "[+] The command " << cmd << " is not known. But you can join this Hello messages" << std::endl;
+                write_str(oss.str());
+                for(int i=0; i < 123; i++){
+                    write_str("Hello, "+cmd+" "+argument+" " +std::to_string(i+1)+"\r\n");
+                }
+                write_str(">> ");
+            });
+        }
+
+        //TO-DO
+        void process_addFile(const std::vector<std::string>& arguments){
+            std::string path = arguments[1];
+            std::istringstream archive_stream(arguments[2]);
+            boost::archive::text_iarchive archive(archive_stream);
+            //archive >> t;
         }
 
         void process_command(std::string& cmd){
@@ -119,16 +161,17 @@ class Server {
                 }
                 else if(arguments.size() > 1){
                     std::string argument = arguments[1];
-                    boost::asio::post(server_.pool, [this, cmd, argument] {
-                        std::ostringstream oss;
-                        oss << "[+] Server executing response on thread #" << std::this_thread::get_id() << std::endl;
-                        oss << "[+] The command " << cmd << " is not known. But you can join this Hello messages" << std::endl;
-                        write_str(oss.str());
-                        for(int i=0; i < 123; i++){
-                            write_str("Hello, "+cmd+" "+argument+" " +std::to_string(i+1)+"\r\n");
-                        }
-                        write_str(">> ");
-                    });
+
+                    switch(hashit(cmd)){
+                        case addFile:
+                            process_addFile(arguments);
+                            break;
+                        case unknown:
+                            process_unknown(cmd, argument);
+                            break;
+
+                    }
+
                 }
                 else{
                     write_str("You should insert at least one argument for the desired command\n>> ");
@@ -161,6 +204,8 @@ class Server {
                                                   const char* message = boost::asio::buffer_cast<const char*>(buf_in_.data());
                                                   std::string message_command(message, bytes_read - (bytes_read > 1 && message[bytes_read - 2] == '\r' ? 2 : 1));
                                                   buf_in_.consume(bytes_read);
+                                                  //debug
+                                                  std::cout << "Message read: " << message_command << std::endl;
                                                   process_command(message_command);
                                               }
                                               else{
