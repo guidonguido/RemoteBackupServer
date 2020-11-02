@@ -13,6 +13,7 @@
 #include <boost/serialization/unordered_map.hpp>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
+#include <boost/array.hpp>
 #include <unordered_set>
 #include "User.h"
 
@@ -43,7 +44,9 @@ class Server {
         bool closed_ = false;
         boost::asio::deadline_timer read_timer_, write_timer_;
 
-        std::optional<std::reference_wrapper<User>> logged_user;
+        //std::optional<std::reference_wrapper<User>> logged_user;
+        std::optional<User> logged_user;
+
 
         //Enum representing known commands
         enum command_code{
@@ -94,12 +97,17 @@ class Server {
             });
         }
 
-        //TO-DO
+        //TO TEST
         void process_addFile(const std::vector<std::string>& arguments){
             std::string path = arguments[1];
-            std::istringstream archive_stream(arguments[2]);
-            boost::archive::text_iarchive archive(archive_stream);
-            //archive >> t;
+            std::stringstream sstream(arguments[2]);
+            size_t file_size;
+            sstream >> file_size;
+            std::ofstream output_file (logged_user->get_folder_path() + path, std::ios_base::binary);
+            handle_file_read(output_file);
+            // A seguito della lettura del comando addFile [path] segue un \n, quindi il file
+            // Completa la lettura con handle_read_file()
+            // Quindi invia ad User il path + file letto
         }
 
         void process_command(std::string& cmd){
@@ -125,7 +133,7 @@ class Server {
                         std::string password = arguments[2];
                         logged_user = User::check_login(std::move(username), std::move(password));
                         if(logged_user.has_value()){
-                            write_str("Login SUCCESS\n[" + logged_user->get().get_username() + "] >> ");
+                            write_str("Login SUCCESS\n[" + logged_user->get_username() + "] >> ");
                         }else{
                             write_str("Login FAILED, try again inserting correct username and password\n>> ");
                         }
@@ -155,7 +163,7 @@ class Server {
                 if(cmd == "checkFilesystemStatus"){
                     boost::asio::post(server_.pool, [this] {
                         std::ostringstream oss;
-                        write_(logged_user.value().get().get_filesystem_status());
+                        write_(logged_user.value().get_filesystem_status());
                         write_str(">> ");
                     });
                 }
@@ -215,6 +223,30 @@ class Server {
 
                                           });
         }// handle_read
+
+        // TO TEST!!
+        void handle_file_read(std::ofstream& output_file){
+            boost::array<char, 1024> buf;
+            bool end = false;
+            while(!end){
+                boost::asio::async_read(socket_, boost::asio::buffer(buf),
+                                        [this, self = shared_from_this(), &output_file, &buf, &end](boost::system::error_code err, std::size_t bytes_read) {
+                                            if(!err){
+                                                if(bytes_read > 0){
+                                                    output_file.write(buf.c_array(), (std::streamsize) bytes_read);
+                                                }
+                                                if (output_file.tellp()== (std::fstream::pos_type)(std::streamsize)bytes_read)
+                                                    end=true; // file was received
+                                            }
+                                            else{
+                                                close_();
+                                                throw err;
+                                            }
+                                        });
+            }
+
+            std::cout << "received " << output_file.tellp() << " bytes.\n";
+        }// handle_file_read
 
         void handle_write(){
             active_buffer_ ^= 1; //XOR -- if is 1 put 0, if 0 put 1. Switch buffers

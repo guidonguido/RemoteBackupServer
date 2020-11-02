@@ -13,21 +13,26 @@
 #include <boost/filesystem/path.hpp>
 
 class User {
-    std::filesystem::path folder_path;
+    std::string folder_path;
     std::string username;
 
-    User(const std::string username, std::filesystem::path folder_path);
-    User(const User& other) = delete;
+    User(const std::string username, std::string folder_path);
+
 public:
+    User(const User& other);
     User(const User&& other);
+    User& operator=(const User& source);
 
     std::string get_username() const;
+    std::string get_folder_path() const;
 
     void set_folder_path(const std::string&& path);
 
     std::unordered_map<std::string, int> get_filesystem_status();
 
-    static std::optional<std::reference_wrapper<User>> check_login(const std::string&& username, const std::string&& password);
+    //static std::optional<std::reference_wrapper<User>> check_login(const std::string&& username, const std::string&& password);
+    static std::optional<User> check_login(const std::string&& username, const std::string&& password);
+
 };
 
 
