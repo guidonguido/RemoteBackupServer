@@ -99,15 +99,20 @@ class Server {
 
         //TO TEST
         void process_addFile(const std::vector<std::string>& arguments){
-            std::string path = arguments[1];
-            std::stringstream sstream(arguments[2]);
-            size_t file_size;
-            sstream >> file_size;
-            std::ofstream output_file (logged_user->get_folder_path() + path, std::ios_base::binary);
-            handle_file_read(output_file);
-            // A seguito della lettura del comando addFile [path] segue un \n, quindi il file
-            // Completa la lettura con handle_read_file()
-            // Quindi invia ad User il path + file letto
+            std::string path_ = arguments[1];
+            std::string file_size_ = arguments[2];
+
+            boost::asio::post(server_.pool, [this, path_, file_size_] {
+                std::string path = path;
+                std::stringstream sstream(file_size_);
+                size_t file_size;
+                sstream >> file_size;
+                std::ofstream output_file (logged_user->get_folder_path() + path, std::ios_base::binary);
+                handle_file_read(output_file);
+                // A seguito della lettura del comando addFile [path] segue un \n, quindi il file
+                // Completa la lettura con handle_read_file()
+                // Quindi invia ad User il path + file letto
+            });
         }
 
         void process_command(std::string& cmd){
@@ -225,6 +230,8 @@ class Server {
         }// handle_read
 
         // TO TEST!!
+        // IDEA Trasforma la lettura in sincrona. La funzione sarà eseguito su un thread apposito e non c'è
+        //      bisogno che venga eseguita la lettura async
         void handle_file_read(std::ofstream& output_file){
             boost::array<char, 1024> buf;
             bool end = false;
