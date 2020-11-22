@@ -4,6 +4,7 @@
 #pragma once
 
 #include <iostream>
+#include <regex>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/impl/basic_text_oarchive.ipp>
@@ -15,6 +16,10 @@
 #include <boost/bind.hpp>
 #include <boost/array.hpp>
 #include <unordered_set>
+#define BOOST_NO_CXX11_SCOPED_ENUMS
+#include <boost/filesystem.hpp>
+#undef BOOST_NO_CXX11_SCOPED_ENUMS
+
 #include "User.h"
 
 // Separa l'oggetto del comando dal comando ricevuto ;)
@@ -82,6 +87,9 @@ class Server {
 
             if(tokens.size() > 0)
                 return tokens;
+
+            else
+                throw std::runtime_error("Invalid arguments format");
         }
 
         void process_unknown(const std::string& cmd, const std::string& argument){
@@ -100,18 +108,73 @@ class Server {
         //TO TEST
         void process_addFile(const std::vector<std::string>& arguments){
             std::string path_ = arguments[1];
+            path_ = logged_user->get_folder_path() +"/"  +path_;
+            boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
+
             std::string file_size_ = arguments[2];
 
+            write_str("[+] Add File request received\n");
+            boost::filesystem::create_directories(path_boost);
+
             boost::asio::post(server_.pool, [this, path_, file_size_] {
-                std::string path = path;
                 std::stringstream sstream(file_size_);
                 size_t file_size;
                 sstream >> file_size;
-                std::ofstream output_file (logged_user->get_folder_path() + path, std::ios_base::binary);
-                handle_file_read(output_file);
+                server_.io_context.post([this, &path_, &file_size](){
+                    std::ofstream output_file (path_);
+                    handle_file_read(output_file, file_size);
+                    output_file.write("a", 1);
+                    write_str("[+] File received\n>> ");
+                });
+
                 // A seguito della lettura del comando addFile [path] segue un \n, quindi il file
                 // Completa la lettura con handle_read_file()
                 // Quindi invia ad User il path + file letto
+            });
+            server_.io_context.post([this](){
+                handle_read();
+            });
+        }
+
+        void process_removeFile(const std::vector<std::string>& arguments){
+            std::string path = arguments[1];
+            boost::asio::post(server_.pool, [this, path] {
+                std::filesystem::remove(logged_user->get_folder_path() + "/" + path);
+            });
+            write_str("[+] File removed\n>> ");
+            server_.io_context.post([this](){
+                handle_read();
+            });
+        }
+
+        //TO TEST
+        void process_updateFile(const std::vector<std::string>& arguments){
+            std::string path_ = arguments[1];
+            path_ = logged_user->get_folder_path() +"/"  +path_;
+            boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
+
+            std::string file_size_ = arguments[2];
+            write_str("[+] Update File request received\n");
+
+            boost::filesystem::create_directories(path_boost);
+
+            boost::asio::post(server_.pool, [this, path_, file_size_] {
+                std::stringstream sstream(file_size_);
+                size_t file_size;
+                sstream >> file_size;
+                server_.io_context.post([this, &path_, &file_size](){
+                    std::ofstream output_file (path_);
+                    handle_file_read(output_file, file_size);
+                    output_file.write("a", 1);
+                    write_str("[+] File received\n>> ");
+                });
+
+                // A seguito della lettura del comando updateFile [path] segue un \n, quindi il file
+                // Completa la lettura con handle_read_file()
+                // Quindi invia ad User il path + file letto
+            });
+            server_.io_context.post([this](){
+                handle_read();
             });
         }
 
@@ -179,6 +242,15 @@ class Server {
                         case addFile:
                             process_addFile(arguments);
                             break;
+
+                        case removeFile:
+                            process_removeFile(arguments);
+                            break;
+
+                        case updateFile:
+                            process_updateFile(arguments);
+                            break;
+
                         case unknown:
                             process_unknown(cmd, argument);
                             break;
@@ -232,27 +304,32 @@ class Server {
         // TO TEST!!
         // IDEA Trasforma la lettura in sincrona. La funzione sarà eseguito su un thread apposito e non c'è
         //      bisogno che venga eseguita la lettura async
-        void handle_file_read(std::ofstream& output_file){
+        void handle_file_read(std::ofstream& output_file, size_t file_size){
             boost::array<char, 1024> buf;
+            boost::system::error_code error;
             bool end = false;
-            while(!end){
-                boost::asio::async_read(socket_, boost::asio::buffer(buf),
-                                        [this, self = shared_from_this(), &output_file, &buf, &end](boost::system::error_code err, std::size_t bytes_read) {
-                                            if(!err){
-                                                if(bytes_read > 0){
-                                                    output_file.write(buf.c_array(), (std::streamsize) bytes_read);
-                                                }
-                                                if (output_file.tellp()== (std::fstream::pos_type)(std::streamsize)bytes_read)
-                                                    end=true; // file was received
-                                            }
-                                            else{
-                                                close_();
-                                                throw err;
-                                            }
-                                        });
-            }
+            write_str("[+] I'm reading the file...\n");
+            int i = 0;
 
-            std::cout << "received " << output_file.tellp() << " bytes.\n";
+            while(!end && i < 100 ){
+                i++;
+                size_t len = socket_.read_some(boost::asio::buffer(buf), error);
+                if(!error){
+                    if (len>0)
+                        std::cout << "Parte di file: " << buf.c_array() << std::endl;
+                        output_file.write(buf.c_array(), (std::streamsize)len);
+                    if (output_file.tellp()> (std::fstream::pos_type)(std::streamsize)file_size)
+                        end=true; // file was received
+                }
+                else{
+                    close_();
+                    throw error;
+                }
+                std::cout << "received " << output_file.tellp() << " bytes.\n";
+            }
+            output_file.close();
+            std::cout<< "File read " << std::endl;
+
         }// handle_file_read
 
         void handle_write(){
