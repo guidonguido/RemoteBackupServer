@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 project(RemoteBackup_Server)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-pthread" )
+set(CMAKE_CXX_FLAGS "-pthread " )
 
-add_executable(RemoteBackup_Server User.cpp main.cpp)
+add_executable(RemoteBackup_Server User.cpp main.cpp server.cpp server.h connection_handler.cpp connection_handler.h)
 
 
 find_package(Boost REQUIRED COMPONENTS serialization filesystem)

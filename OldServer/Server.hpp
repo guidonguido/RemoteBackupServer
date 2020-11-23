@@ -20,7 +20,7 @@
 #include <boost/filesystem.hpp>
 #undef BOOST_NO_CXX11_SCOPED_ENUMS
 
-#include "User.h"
+#include "../User.h"
 
 // Separa l'oggetto del comando dal comando ricevuto ;)
 // Cerca di estrarre un user dalla tabella LOGIN_INFO -- Fatto. Login implementato
