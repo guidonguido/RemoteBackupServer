@@ -7,7 +7,7 @@
 
 int main() {
     try{
-        server server(5002);
+        server server(5004);
         server.run();
     } catch(const std::exception& e){
         std::cerr << "Error: " << e.what() << std::endl;

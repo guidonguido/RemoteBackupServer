@@ -4,6 +4,8 @@
 
 #include "connection_handler.h"
 
+#define DEBUG 0
+
 connection_handler::command_code connection_handler::hashit(std::string const& command){
     if(command == "addFile") return addFile;
     if(command == "updateFile") return updateFile;
@@ -44,6 +46,9 @@ void connection_handler::process_unknown(const std::string& cmd, const std::stri
         }
         write_str(">> ");
     });
+    server_.io_context.post([this](){
+        handle_read();
+    });
 }
 
 //TO TEST
@@ -51,30 +56,37 @@ void connection_handler::process_addFile(const std::vector<std::string>& argumen
     std::string path_ = arguments[1];
     path_ = logged_user->get_folder_path() +"/"  +path_;
     boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
+    std::cout << "new File path " << path_boost.string() << std::endl;
 
     std::string file_size_ = arguments[2];
 
-    write_str("[+] Add File request received\n");
+    if(DEBUG) write_str("[+] Add File request received\n");
     boost::filesystem::create_directories(path_boost);
 
     boost::asio::post(server_.pool, [this, path_, file_size_] {
         std::stringstream sstream(file_size_);
         size_t file_size;
         sstream >> file_size;
-        server_.io_context.post([this, &path_, &file_size](){
+        server_.io_context.post([this, path_, &file_size](){
+            std::cout << "new File name " << path_ << std::endl;
             std::ofstream output_file (path_);
-            handle_file_read(output_file, file_size);
-            output_file.write("a", 1);
-            write_str("[+] File received\n>> ");
+            if( !output_file ){
+                if(DEBUG) write_str("[+] Error happened opening the file\n>> ");
+                std::cout << "Error happened opening the file\n";
+            }
+            else{
+                handle_file_read(output_file, file_size);
+                if(DEBUG) write_str("[+] File received\n>> ");
+            }
         });
 
         // A seguito della lettura del comando addFile [path] segue un \n, quindi il file
         // Completa la lettura con handle_read_file()
         // Quindi invia ad User il path + file letto
     });
-    server_.io_context.post([this](){
+    /**server_.io_context.post([this](){
         handle_read();
-    });
+    });*/
 }
 
 void connection_handler::process_removeFile(const std::vector<std::string>& arguments){
@@ -82,7 +94,7 @@ void connection_handler::process_removeFile(const std::vector<std::string>& argu
     boost::asio::post(server_.pool, [this, path] {
         std::filesystem::remove(logged_user->get_folder_path() + "/" + path);
     });
-    write_str("[+] File removed\n>> ");
+    if(DEBUG) write_str("[+] File removed\n>> ");
     server_.io_context.post([this](){
         handle_read();
     });
@@ -142,9 +154,9 @@ void connection_handler::process_command(std::string& cmd){
                 std::string password = arguments[2];
                 logged_user = User::check_login(std::move(username), std::move(password));
                 if(logged_user.has_value()){
-                    write_str("Login SUCCESS\n[" + logged_user->get_username() + "] >> ");
+                    if(DEBUG) write_str("Login SUCCESS\n[" + logged_user->get_username() + "] >> ");
                 }else{
-                    write_str("Login FAILED, try again inserting correct username and password\n>> ");
+                    if(DEBUG) write_str("Login FAILED, try again inserting correct username and password\n>> ");
                 }
 
                 server_.io_context.post([this](){
@@ -152,14 +164,14 @@ void connection_handler::process_command(std::string& cmd){
                 });
                 return;
             }else{
-                write_str("Login format is incorrect, try again inserting both username and password\n>> ");
+                if(DEBUG) write_str("Login format is incorrect, try again inserting both username and password\n>> ");
                 server_.io_context.post([this](){
                     handle_read();
                 });
             }//if-else
         }//if(login)
 
-        write_str("Login needed to use the Back-up Server\n>> ");
+        if(DEBUG) write_str("Login needed to use the Back-up Server\n>> ");
 
         // richiedi al context di eseguire una nuova read
         // dopo aver dato la risposta al command
@@ -173,7 +185,7 @@ void connection_handler::process_command(std::string& cmd){
             boost::asio::post(server_.pool, [this] {
                 std::ostringstream oss;
                 write_(logged_user.value().get_filesystem_status());
-                write_str(">> ");
+                if(DEBUG) write_str(">> ");
             });
         }
         else if(arguments.size() > 1){
@@ -206,9 +218,9 @@ void connection_handler::process_command(std::string& cmd){
         // richiedi al context di eseguire una nuova read
         // dopo aver dato la risposta al command
         // si comporta come un pool di thread
-        server_.io_context.post([this](){
+        /*server_.io_context.post([this](){
             handle_read();
-        });
+        });*/
     }//if(logged_user_command)
 
 }
@@ -249,27 +261,29 @@ void connection_handler::handle_file_read(std::ofstream& output_file, size_t fil
     boost::array<char, 1024> buf;
     boost::system::error_code error;
     bool end = false;
-    write_str("[+] I'm reading the file...\n");
-    int i = 0;
+    //write_str("[+] I'm reading the file...\n");
 
-    while(!end && i < 100 ){
-        i++;
+    while( !end ){
         size_t len = socket_.read_some(boost::asio::buffer(buf), error);
         if(!error){
-            if (len>0)
+            if (len>0) {
                 std::cout << "Parte di file: " << buf.c_array() << std::endl;
-            output_file.write(buf.c_array(), (std::streamsize)len);
-            if (output_file.tellp()> (std::fstream::pos_type)(std::streamsize)file_size)
+                output_file.write(buf.c_array(), (std::streamsize) len);
+            }
+            if (output_file.tellp()>= (std::fstream::pos_type)(std::streamsize)file_size)
                 end=true; // file was received
         }
         else{
             close_();
-            throw error;
+            throw std::runtime_error("read_file error");
         }
         std::cout << "received " << output_file.tellp() << " bytes.\n";
     }
     output_file.close();
     std::cout<< "File read " << std::endl;
+    server_.io_context.post([this](){
+        handle_read();
+    });
 
 }// handle_file_read
 
