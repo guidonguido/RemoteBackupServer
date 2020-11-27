@@ -3,6 +3,7 @@
 //
 
 #include "connection_handler.h"
+#include <algorithm>
 
 #define DEBUG 0
 
@@ -50,7 +51,7 @@ void connection_handler::process_unknown(const std::string& cmd, const std::stri
 }
 
 //TO TEST
-void connection_handler::process_addFile(const std::vector<std::string>& arguments){
+void connection_handler::process_addOrUpdateFile(const std::vector<std::string>& arguments){
     std::string path_ = arguments[1];
     path_ = logged_user->get_folder_path() +"/"  +path_;
     boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
@@ -80,7 +81,7 @@ void connection_handler::process_addFile(const std::vector<std::string>& argumen
 
         // A seguito della lettura del comando addFile [path] segue un \n, quindi il file
         // Completa la lettura con handle_read_file()
-        // Quindi invia ad User il path + file letto
+        // Quindi invia ad User il path + file letto (opzionale)
     });
     /**server_.io_context.post([this](){
         handle_read();
@@ -93,36 +94,6 @@ void connection_handler::process_removeFile(const std::vector<std::string>& argu
         std::filesystem::remove(logged_user->get_folder_path() + "/" + path);
     });
     if(DEBUG) write_str("[+] File removed\n>> ");
-    server_.io_context.post([this](){
-        handle_read();
-    });
-}
-
-//TO TEST
-void connection_handler::process_updateFile(const std::vector<std::string>& arguments){
-    std::string path_ = arguments[1];
-    path_ = logged_user->get_folder_path() +"/"  +path_;
-    boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
-
-    std::string file_size_ = arguments[2];
-    if(DEBUG) write_str("[+] Update File request received\n");
-
-    boost::filesystem::create_directories(path_boost);
-
-    boost::asio::post(server_.pool, [this, path_, file_size_] {
-        std::stringstream sstream(file_size_);
-        size_t file_size;
-        sstream >> file_size;
-        server_.io_context.post([this, &path_, &file_size](){
-            std::ofstream output_file (path_);
-            handle_file_read(output_file, file_size);
-            if(DEBUG) write_str("[+] File received\n>> ");
-        });
-
-        // A seguito della lettura del comando updateFile [path] segue un \n, quindi il file
-        // Completa la lettura con handle_read_file()
-        // Quindi invia ad User il path + file letto
-    });
     server_.io_context.post([this](){
         handle_read();
     });
@@ -190,7 +161,7 @@ void connection_handler::process_command(std::string& cmd){
 
             switch(hashit(cmd)){
                 case addFile:
-                    process_addFile(arguments);
+                    process_addOrUpdateFile(arguments);
                     break;
 
                 case removeFile:
@@ -198,7 +169,7 @@ void connection_handler::process_command(std::string& cmd){
                     break;
 
                 case updateFile:
-                    process_updateFile(arguments);
+                    process_addOrUpdateFile(arguments);
                     break;
 
                 case unknown:
@@ -244,6 +215,11 @@ void connection_handler::handle_read(){
                                               std::cout << "Message read: " << message_command << ", bytes_read: " << bytes_read << std::endl;
                                               process_command(message_command);
                                           }
+                                          else{
+                                              server_.io_context.post([this](){
+                                                  handle_read();
+                                              });
+                                          }
 
                                       }
                                       else{
@@ -254,21 +230,28 @@ void connection_handler::handle_read(){
                                   });
 }// handle_read
 
-// TO TEST!!
-// IDEA Trasforma la lettura in sincrona. La funzione sarà eseguito su un thread apposito e non c'è
-//      bisogno che venga eseguita la lettura async
-void connection_handler::handle_file_read(std::ofstream& output_file, size_t file_size){
-    boost::array<char, 1024> buf;
+
+void connection_handler::handle_file_read(std::ofstream& output_file, std::size_t file_size){
+    size_t bytes_to_read = file_size;
+    std::vector<char> buf(1024);
     boost::system::error_code error;
     bool end = false;
+    size_t len;
     //write_str("[+] I'm reading the file...\n");
 
     while( !end ){
-        size_t len = socket_.read_some(boost::asio::buffer(buf), error);
+
+        if( bytes_to_read >= 1024 )
+            len = socket_.read_some(boost::asio::buffer(buf), error);
+        else{
+            buf = std::vector<char>(bytes_to_read);
+            len = socket_.read_some(boost::asio::buffer(buf), error);
+        }
         if(!error){
             if (len>0) {
-                std::cout << "Parte di file: " << buf.c_array() << std::endl;
-                output_file.write(buf.c_array(), (std::streamsize) len);
+                std::cout << "Parte di file: " << std::string(buf.begin(), buf.end()) << std::endl;
+                bytes_to_read -= len;
+                output_file.write(std::string(buf.begin(), buf.end()).c_str(), (std::streamsize) len);
             }
             if (output_file.tellp()>= (std::fstream::pos_type)(std::streamsize)file_size)
                 end=true; // file was received

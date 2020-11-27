@@ -61,13 +61,9 @@ class connection_handler: public std::enable_shared_from_this<connection_handler
 
     void process_unknown(const std::string& cmd, const std::string& argument);
 
-    //TO TEST
-    void process_addFile(const std::vector<std::string>& arguments);
+    void process_addOrUpdateFile(const std::vector<std::string>& arguments);
 
     void process_removeFile(const std::vector<std::string>& arguments);
-
-    //TO TEST
-    void process_updateFile(const std::vector<std::string>& arguments);
 
     void process_command(std::string& cmd);
 
