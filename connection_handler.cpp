@@ -28,11 +28,9 @@ std::vector<std::string> connection_handler::parse_command(const std::string cmd
         prev = pos + std::string(" ").length();
     }while (pos < cmd.length() && prev < cmd.length());
 
-    if(tokens.size() > 0)
-        return tokens;
+    return tokens;
 
-    else
-        throw std::runtime_error("Invalid arguments format");
+
 }
 
 void connection_handler::process_unknown(const std::string& cmd, const std::string& argument){
@@ -107,7 +105,7 @@ void connection_handler::process_updateFile(const std::vector<std::string>& argu
     boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
 
     std::string file_size_ = arguments[2];
-    write_str("[+] Update File request received\n");
+    if(DEBUG) write_str("[+] Update File request received\n");
 
     boost::filesystem::create_directories(path_boost);
 
@@ -118,8 +116,7 @@ void connection_handler::process_updateFile(const std::vector<std::string>& argu
         server_.io_context.post([this, &path_, &file_size](){
             std::ofstream output_file (path_);
             handle_file_read(output_file, file_size);
-            output_file.write("a", 1);
-            write_str("[+] File received\n>> ");
+            if(DEBUG) write_str("[+] File received\n>> ");
         });
 
         // A seguito della lettura del comando updateFile [path] segue un \n, quindi il file
@@ -243,8 +240,11 @@ void connection_handler::handle_read(){
                                           std::string message_command(message, bytes_read - (bytes_read > 1 && message[bytes_read - 2] == '\r' ? 2 : 1));
                                           buf_in_.consume(bytes_read);
                                           //debug
-                                          std::cout << "Message read: " << message_command << std::endl;
-                                          process_command(message_command);
+                                          if(bytes_read > 1){
+                                              std::cout << "Message read: " << message_command << ", bytes_read: " << bytes_read << std::endl;
+                                              process_command(message_command);
+                                          }
+
                                       }
                                       else{
                                           close_();
@@ -280,7 +280,7 @@ void connection_handler::handle_file_read(std::ofstream& output_file, size_t fil
         std::cout << "received " << output_file.tellp() << " bytes.\n";
     }
     output_file.close();
-    std::cout<< "File read " << std::endl;
+    std::cout<< "File read successfully" << std::endl;
     server_.io_context.post([this](){
         handle_read();
     });
@@ -301,7 +301,8 @@ void connection_handler::handle_write(){
         }
     });*/
 
-    boost::asio::async_write(socket_, buffer_seq_, [this](const boost::system::error_code& err, std::size_t bytes_transferred){
+    boost::asio::async_write(socket_, buffer_seq_, [this](
+            const boost::system::error_code& err, std::size_t bytes_transferred){
         write_timer_.cancel();
         std::lock_guard l(buffers_mtx_);
         buffers_[active_buffer_].clear();
