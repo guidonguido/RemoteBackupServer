@@ -1,17 +1,28 @@
 //
-// Created by guido on 23/11/20.
+// Created by guido on 28/11/20.
 //
 
-#include "connection_handler.h"
-#include <algorithm>
+#include "connection_handler_new.h"
 
 #define DEBUG 0
 
-connection_handler::connection_handler(server* server): server_(*server), read_timer_(server->io_context),
-                                                        write_timer_(server->io_context), socket_(server->io_context),
-                                                        logged_user(std::nullopt){}
 
-connection_handler::command_code connection_handler::hashit(std::string const& command){
+
+connection_handler_new::connection_handler_new(std::shared_ptr<boost::asio::thread_pool> pool,
+        std::shared_ptr<boost::asio::io_context> io_context,
+        std::function<void(std::shared_ptr<connection_handler_new>)>& erase_callback,
+        std::function<void()>& stop_callback):
+                                            read_timer_(*io_context),
+                                            write_timer_(*io_context),
+                                            socket_(*io_context),
+                                            pool(pool),
+                                            io_context(io_context),
+                                            erase_callback(erase_callback),
+                                            stop_callback(stop_callback),
+                                            logged_user(std::nullopt){}
+
+
+connection_handler_new::command_code connection_handler_new::hashit(std::string const& command){
     if(command == "addFile") return addFile;
     if(command == "updateFile") return updateFile;
     if(command == "removeFile") return removeFile;
@@ -21,7 +32,7 @@ connection_handler::command_code connection_handler::hashit(std::string const& c
 }
 
 // Separate command from its argument
-std::vector<std::string> connection_handler::parse_command(const std::string cmd){
+std::vector<std::string> connection_handler_new::parse_command(const std::string cmd){
     size_t prev = 0, pos = 0;
     std::vector<std::string> tokens;
     do
@@ -37,8 +48,8 @@ std::vector<std::string> connection_handler::parse_command(const std::string cmd
 
 }
 
-void connection_handler::process_unknown(const std::string& cmd, const std::string& argument){
-    boost::asio::post(server_.pool, [this, cmd, argument] {
+void connection_handler_new::process_unknown(const std::string& cmd, const std::string& argument){
+    boost::asio::post(*pool, [this, cmd, argument] {
         std::ostringstream oss;
         oss << "[+] Server executing response on thread #" << std::this_thread::get_id() << std::endl;
         oss << "[+] The command " << cmd << " is not known. But you can join this Hello messages" << std::endl;
@@ -52,7 +63,7 @@ void connection_handler::process_unknown(const std::string& cmd, const std::stri
 }
 
 //TO TEST
-void connection_handler::process_addOrUpdateFile(const std::vector<std::string>& arguments){
+void connection_handler_new::process_addOrUpdateFile(const std::vector<std::string>& arguments){
     std::string path_ = arguments[1];
     path_ = logged_user->get_folder_path() +"/"  +path_;
     boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
@@ -63,11 +74,12 @@ void connection_handler::process_addOrUpdateFile(const std::vector<std::string>&
     if(DEBUG) write_str("[+] Add File request received\n");
     boost::filesystem::create_directories(path_boost);
 
-    boost::asio::post(server_.pool, [this, path_, file_size_] {
+    boost::asio::post(*pool, [this, path_, file_size_] {
         std::stringstream sstream(file_size_);
         size_t file_size;
         sstream >> file_size;
-        server_.io_context.post([this, path_, &file_size](){
+
+        io_context->post([this, path_, &file_size](){
             std::cout << "new File name " << path_ << std::endl;
             std::ofstream output_file (path_);
             if( !output_file ){
@@ -89,17 +101,17 @@ void connection_handler::process_addOrUpdateFile(const std::vector<std::string>&
     });*/
 }
 
-void connection_handler::process_removeFile(const std::vector<std::string>& arguments){
+void connection_handler_new::process_removeFile(const std::vector<std::string>& arguments){
     std::string path = arguments[1];
-    boost::asio::post(server_.pool, [this, path] {
+    boost::asio::post(*pool, [this, path] {
         std::filesystem::remove(logged_user->get_folder_path() + "/" + path);
     });
     if(DEBUG) write_str("[+] File removed\n>> ");
     read_command();
 }
 
-void connection_handler::process_checkFilesystemStatus() {
-    boost::asio::post(server_.pool, [this] {
+void connection_handler_new::process_checkFilesystemStatus() {
+    boost::asio::post(*pool, [this] {
         std::ostringstream oss;
         write_(logged_user.value().get_filesystem_status());
         if(DEBUG) write_str(">> ");
@@ -108,7 +120,7 @@ void connection_handler::process_checkFilesystemStatus() {
     });
 }
 
-void connection_handler::process_login(const std::vector<std::string>& arguments){
+void connection_handler_new::process_login(const std::vector<std::string>& arguments){
     if(arguments.size() == 3){
         std::string username = arguments[1];
         std::string password = arguments[2];
@@ -123,7 +135,7 @@ void connection_handler::process_login(const std::vector<std::string>& arguments
     }//if-else
 }
 
-void connection_handler::process_command(std::string cmd){
+void connection_handler_new::process_command(std::string cmd){
 
     // split command and its arguments
     std::vector<std::string> arguments = parse_command(cmd);
@@ -131,7 +143,7 @@ void connection_handler::process_command(std::string cmd){
 
     // No login check: only stop and close allowed
     if(cmd == "stop") {
-        server_.stop();
+        stop_callback();
         return;
     }
     if(cmd == "close"){
@@ -153,34 +165,34 @@ void connection_handler::process_command(std::string cmd){
 
         return;
     }
-        // Post new function to execute to server pool
+    // Post new function to execute to server pool
     if(cmd == "checkFilesystemStatus"){
         process_checkFilesystemStatus();
         return;
     }
 
     if(arguments.size() > 1){
-            std::string argument = arguments[1];
+        std::string argument = arguments[1];
 
-            switch(hashit(cmd)){
-                case addFile:
-                    //process_addOrUpdateFile(arguments);
-                    process_addOrUpdateFile(arguments);
-                    break;
+        switch(hashit(cmd)){
+            case addFile:
+                //process_addOrUpdateFile(arguments);
+                process_addOrUpdateFile(arguments);
+                break;
 
-                case removeFile:
-                    process_removeFile(arguments);
-                    break;
+            case removeFile:
+                process_removeFile(arguments);
+                break;
 
-                case updateFile:
-                    process_addOrUpdateFile(arguments);
-                    break;
+            case updateFile:
+                process_addOrUpdateFile(arguments);
+                break;
 
-                case unknown:
-                    process_unknown(cmd, argument);
-                    break;
+            case unknown:
+                process_unknown(cmd, argument);
+                break;
 
-            }
+        }
     }
     else {
         write_str("You should insert at least one argument for the desired command\n>> ");
@@ -189,13 +201,14 @@ void connection_handler::process_command(std::string cmd){
     }
 }
 
-void connection_handler::read_command(){
-    server_.io_context.post([this]() {
+void connection_handler_new::read_command(){
+
+    io_context->post([this]() {
         handle_read();
     });
 }
 
-void connection_handler::handle_read(){
+void connection_handler_new::handle_read(){
     /**read_timer_.expires_from_now(server_.read_timeout);
     read_timer_.async_wait([this](boost::system::error_code err){
         if(!err){
@@ -231,7 +244,7 @@ void connection_handler::handle_read(){
 }// handle_read
 
 
-void connection_handler::handle_file_read(std::ofstream& output_file, std::size_t file_size){
+void connection_handler_new::handle_file_read(std::ofstream& output_file, std::size_t file_size){
     size_t bytes_to_read = file_size;
     std::vector<char> buf(1024);
     boost::system::error_code error;
@@ -268,7 +281,7 @@ void connection_handler::handle_file_read(std::ofstream& output_file, std::size_
 
 }// handle_file_read
 
-void connection_handler::handle_write(){
+void connection_handler_new::handle_write(){
     active_buffer_ ^= 1; //XOR -- if is 1 put 0, if 0 put 1. Switch buffers
     for(const auto &data: buffers_[active_buffer_]){
         buffer_seq_.push_back(boost::asio::buffer(data));
@@ -299,10 +312,10 @@ void connection_handler::handle_write(){
     });
 }
 
-bool connection_handler::writing() const { return !buffer_seq_.empty();}
+bool connection_handler_new::writing() const { return !buffer_seq_.empty();}
 
 
-void connection_handler::start(){
+void connection_handler_new::start(){
     std::cout << "Connection created " << std::endl;
     socket_.set_option(boost::asio::ip::tcp::no_delay(true));
     std::ostringstream oss;
@@ -316,29 +329,29 @@ void connection_handler::start(){
 }
 
 // socket creation
-boost::asio::ip::tcp::socket& connection_handler::get_socket(){
+boost::asio::ip::tcp::socket& connection_handler_new::get_socket(){
     return socket_;
 }
 
-void connection_handler::close_(){
+void connection_handler_new::close_(){
     closing_ = true;
     if(!writing())
         shutdown_();
 }
 
-void connection_handler::shutdown_(){
+void connection_handler_new::shutdown_(){
     if(!closed_){
         closing_ = closed_ = true;
         boost::system::error_code err;
         socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, err);
         socket_.close();
-        server_.active_connections.erase(shared_from_this());
+        erase_callback(shared_from_this());
     }
 }
 
 
 template <typename T>
-void connection_handler::write_(T&& t){
+void connection_handler_new::write_(T&& t){
     // Serialize the data first so we know how large it is.
     std::ostringstream archive_stream;
     boost::archive::text_oarchive archive(archive_stream);
@@ -358,7 +371,7 @@ void connection_handler::write_(T&& t){
         handle_write();
 }
 
-void connection_handler::write_str (std::string&& data){
+void connection_handler_new::write_str (std::string&& data){
     std::lock_guard l(buffers_mtx_);
     buffers_[active_buffer_^1].push_back(std::move(data));
     if(!writing())

@@ -4,7 +4,8 @@ project(RemoteBackup_Server)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-pthread" )
 
-add_executable(RemoteBackup_Server User.cpp main.cpp server.cpp server.h connection_handler.cpp connection_handler.h)
+add_executable(RemoteBackup_Server User.cpp server.cpp server.h connection_handler.cpp
+        connection_handler.h connection_handler_new.cpp connection_handler_new.h server_new.cpp server_new.h main_new.cpp)
 
 
 find_package(Boost REQUIRED COMPONENTS serialization filesystem)

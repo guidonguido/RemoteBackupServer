@@ -1,9 +1,9 @@
 //
-// Created by guido on 23/11/20.
+// Created by guido on 28/11/20.
 //
 
-#ifndef REMOTEBACKUP_SERVER_CONNECTION_HANDLER_H
-#define REMOTEBACKUP_SERVER_CONNECTION_HANDLER_H
+#ifndef REMOTEBACKUP_SERVER_CONNECTION_HANDLER_NEW_H
+#define REMOTEBACKUP_SERVER_CONNECTION_HANDLER_NEW_H
 
 #include <iostream>
 #include <regex>
@@ -26,12 +26,15 @@
 #include "server.h"
 
 
-class connection_handler: public std::enable_shared_from_this<connection_handler> {
+class connection_handler_new: public std::enable_shared_from_this<connection_handler_new> {
 
+    std::shared_ptr<boost::asio::thread_pool> pool;
+    std::shared_ptr<boost::asio::io_context> io_context;
 
-    boost::asio::ip::tcp::socket socket_;
+    // Callback that deletes the connection from the list in server
+    std::function<void(std::shared_ptr<connection_handler_new>)> erase_callback;
+    std::function<void()> stop_callback;
 
-    friend class server;
     boost::asio::streambuf buf_in_;
     std::mutex buffers_mtx_;
     std::vector<std::string> buffers_[2]; // a double buffer
@@ -40,6 +43,9 @@ class connection_handler: public std::enable_shared_from_this<connection_handler
     bool closing_ = false;
     bool closed_ = false;
     boost::asio::deadline_timer read_timer_, write_timer_;
+
+    //std::optional<std::reference_wrapper<User>> logged_user;
+    std::optional<User> logged_user;
 
 
 
@@ -72,8 +78,13 @@ class connection_handler: public std::enable_shared_from_this<connection_handler
 
 
 public:
+    boost::asio::ip::tcp::socket socket_;
 
-    connection_handler(server* server);
+    connection_handler_new(std::shared_ptr<boost::asio::thread_pool> pool,
+            std::shared_ptr<boost::asio::io_context> io_context,
+            std::function<void(std::shared_ptr<connection_handler_new>)>& erase_callback,
+            std::function<void()>& stop_callback
+    );
 
 
     void start();
@@ -104,10 +115,10 @@ public:
 
     bool writing() const;
 
-    //std::optional<std::reference_wrapper<User>> logged_user;
-    std::optional<User> logged_user;
-    server& server_;
+
 }; //connection_handler
 
 
-#endif //REMOTEBACKUP_SERVER_CONNECTION_HANDLER_H
+
+
+#endif //REMOTEBACKUP_SERVER_CONNECTION_HANDLER_NEW_H
