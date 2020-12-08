@@ -5,20 +5,8 @@
 #ifndef REMOTEBACKUP_SERVER_SERVER_NEW_H
 #define REMOTEBACKUP_SERVER_SERVER_NEW_H
 
-
 #include <iostream>
-#include <regex>
-
-#include <boost/serialization/unordered_map.hpp>
 #include <boost/asio.hpp>
-#include <boost/bind.hpp>
-#include <boost/array.hpp>
-#include <unordered_set>
-#define BOOST_NO_CXX11_SCOPED_ENUMS
-#include <boost/filesystem.hpp>
-#undef BOOST_NO_CXX11_SCOPED_ENUMS
-
-#include "User.h"
 #include "connection_handler_new.h"
 
 class server_new {
@@ -38,7 +26,6 @@ public:
 
     std::function<void(std::shared_ptr<connection_handler_new>)> erase_connection;
     std::function<void(void)> stop_server;
-
 
 
 private:

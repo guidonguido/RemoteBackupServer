@@ -3,7 +3,6 @@
 //
 
 #include "server_new.h"
-#include "User.h"
 
 int main() {
     try{

@@ -12,18 +12,14 @@
 #include <boost/archive/impl/basic_text_oarchive.ipp>
 #include <boost/archive/impl/text_oarchive_impl.ipp>
 #include <boost/archive/basic_text_oprimitive.hpp>
-
 #include <boost/serialization/unordered_map.hpp>
 #include <boost/asio.hpp>
-#include <boost/bind.hpp>
 #include <boost/array.hpp>
 #include <unordered_set>
 #define BOOST_NO_CXX11_SCOPED_ENUMS
 #include <boost/filesystem.hpp>
 #undef BOOST_NO_CXX11_SCOPED_ENUMS
-
 #include "User.h"
-#include "server.h"
 
 
 class connection_handler_new: public std::enable_shared_from_this<connection_handler_new> {

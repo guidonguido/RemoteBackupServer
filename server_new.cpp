@@ -9,7 +9,7 @@ server_new::server_new(int port):
         acceptor_(*io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(),port),
                 false){
 
-    this->pool = std::make_shared<boost::asio::thread_pool>(2);
+    this->pool = std::make_shared<boost::asio::thread_pool>(4);
 
     // After the connection is closed, it can be erased from the active_connections
     erase_connection = [this](std::shared_ptr<connection_handler_new> connection_handler) {

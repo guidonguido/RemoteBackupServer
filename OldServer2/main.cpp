@@ -1,9 +1,9 @@
 //
 // Created by guido on 21/09/20.
 //
-#include "OldServer/Server.hpp"
+#include "../OldServer/Server.hpp"
 #include "server.h"
-#include "User.h"
+#include "../User.h"
 
 int main() {
     try{

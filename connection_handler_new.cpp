@@ -6,8 +6,6 @@
 
 #define DEBUG 0
 
-
-
 connection_handler_new::connection_handler_new(std::shared_ptr<boost::asio::thread_pool> pool,
         std::shared_ptr<boost::asio::io_context> io_context,
         std::function<void(std::shared_ptr<connection_handler_new>)>& erase_callback,
@@ -53,34 +51,38 @@ void connection_handler_new::process_unknown(const std::string& cmd, const std::
         std::ostringstream oss;
         oss << "[+] Server executing response on thread #" << std::this_thread::get_id() << std::endl;
         oss << "[+] The command " << cmd << " is not known. But you can join this Hello messages" << std::endl;
-        write_str(oss.str());
+        if(DEBUG) write_str(oss.str());
         for(int i=0; i < 123; i++){
-            write_str("Hello, "+cmd+" "+argument+" " +std::to_string(i+1)+"\r\n");
+            if(DEBUG) write_str("Hello, "+cmd+" "+argument+" " +std::to_string(i+1)+"\r\n");
         }
-        write_str(">> ");
+        if(DEBUG) write_str(">> ");
     });
     read_command();
 }
 
-//TO TEST
+// addFile or updateFile <path> <file_size> commands
 void connection_handler_new::process_addOrUpdateFile(const std::vector<std::string>& arguments){
-    std::string path_ = arguments[1];
-    path_ = logged_user->get_folder_path() +"/"  +path_;
-    boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
-    std::cout << "new File path " << path_boost.string() << std::endl;
+    boost::asio::post(*pool, [this, arguments] {
 
-    std::string file_size_ = arguments[2];
+        std::string path_ = arguments[1];
+        std::string file_size_ = arguments[2];
+        path_ = logged_user->get_folder_path() +"/"  +path_;
 
-    if(DEBUG) write_str("[+] Add File request received\n");
-    boost::filesystem::create_directories(path_boost);
+        // directory path
+        boost::filesystem::path path_boost(path_.substr(0, path_.find_last_of("\\/")));
 
-    boost::asio::post(*pool, [this, path_, file_size_] {
+        std::cout << "\n[socket "<< &this->socket_ << "]addFile request " << path_boost.string() << std::endl;
+        std::cout << "\n[socket "<< &this->socket_ << "]new File directory path " << path_boost.string() << std::endl;
+
+        if(DEBUG) write_str("[+] Add File request received\n");
+        boost::filesystem::create_directories(path_boost);
+
         std::stringstream sstream(file_size_);
         size_t file_size;
         sstream >> file_size;
 
         io_context->post([this, path_, &file_size](){
-            std::cout << "new File name " << path_ << std::endl;
+            std::cout << "new File complete path " << path_ << std::endl;
             std::ofstream output_file (path_);
             if( !output_file ){
                 if(DEBUG) write_str("[+] Error happened opening the file\n>> ");
@@ -93,14 +95,11 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
         });
 
         // A seguito della lettura del comando addFile [path] segue un \n, quindi il file
-        // Completa la lettura con handle_read_file()
-        // Quindi invia ad User il path + file letto (opzionale)
     });
-    /**server_.io_context.post([this](){
-        handle_read();
-    });*/
-}
+}// process_addOrUpdateFile
 
+
+// removeFile <path> command
 void connection_handler_new::process_removeFile(const std::vector<std::string>& arguments){
     std::string path = arguments[1];
     boost::asio::post(*pool, [this, path] {
@@ -108,8 +107,10 @@ void connection_handler_new::process_removeFile(const std::vector<std::string>& 
     });
     if(DEBUG) write_str("[+] File removed\n>> ");
     read_command();
-}
+}// process_removeFile
 
+
+// checkFilesystemStatus
 void connection_handler_new::process_checkFilesystemStatus() {
     boost::asio::post(*pool, [this] {
         std::ostringstream oss;
@@ -118,8 +119,10 @@ void connection_handler_new::process_checkFilesystemStatus() {
 
         read_command();
     });
-}
+}// process_removeFile
 
+
+// login <user> <password> command
 void connection_handler_new::process_login(const std::vector<std::string>& arguments){
     if(arguments.size() == 3){
         std::string username = arguments[1];
@@ -133,7 +136,8 @@ void connection_handler_new::process_login(const std::vector<std::string>& argum
     }else{
         if(DEBUG) write_str("Login format is incorrect, try again inserting both username and password\n>> ");
     }//if-else
-}
+}// process_login
+
 
 void connection_handler_new::process_command(std::string cmd){
 
@@ -191,11 +195,10 @@ void connection_handler_new::process_command(std::string cmd){
             case unknown:
                 process_unknown(cmd, argument);
                 break;
-
         }
     }
     else {
-        write_str("You should insert at least one argument for the desired command\n>> ");
+        if(DEBUG) write_str("You should insert at least one argument for the desired command\n>> ");
 
         read_command();
     }
@@ -217,7 +220,7 @@ void connection_handler_new::handle_read(){
         }
     });*/
 
-    //read until delimeter "\n"
+    // read until delimeter "\n"
     boost::asio::async_read_until(socket_, buf_in_, "\n",
                                   [this, self = shared_from_this()](boost::system::error_code err, std::size_t bytes_read){
                                       read_timer_.cancel();
@@ -227,42 +230,40 @@ void connection_handler_new::handle_read(){
                                           buf_in_.consume(bytes_read);
                                           //debug
                                           if(bytes_read > 1){
-                                              std::cout << "Message read: " << message_command << ", bytes_read: " << bytes_read << std::endl;
+                                              std::cout << "\n[socket "<< &this->socket_ << "]Message read: " << message_command << ", bytes_read: " << bytes_read << std::endl;
                                               process_command(message_command);
                                           }
                                           else{
                                               read_command();
                                           }
-
                                       }
                                       else{
                                           close_();
                                           throw err;
                                       }
-
                                   });
 }// handle_read
 
 
 void connection_handler_new::handle_file_read(std::ofstream& output_file, std::size_t file_size){
+    size_t len;
     size_t bytes_to_read = file_size;
     std::vector<char> buf(1024);
     boost::system::error_code error;
     bool end = false;
-    size_t len;
-    //write_str("[+] I'm reading the file...\n");
 
     while( !end ){
 
         if( bytes_to_read >= 1024 )
-            len = socket_.read_some(boost::asio::buffer(buf), error);
+            //len = socket_.read_some(boost::asio::buffer(buf), error);
+            len = boost::asio::read(socket_, boost::asio::buffer(buf), error);
         else{
             buf = std::vector<char>(bytes_to_read);
             len = socket_.read_some(boost::asio::buffer(buf), error);
         }
         if(!error){
             if (len>0) {
-                std::cout << "Parte di file: " << std::string(buf.begin(), buf.end()) << std::endl;
+                std::cout << "\n[socket "<< &this->socket_ << "] Parte di file: " << std::string(buf.begin(), buf.end()) << std::endl;
                 bytes_to_read -= len;
                 output_file.write(std::string(buf.begin(), buf.end()).c_str(), (std::streamsize) len);
             }
@@ -278,7 +279,6 @@ void connection_handler_new::handle_file_read(std::ofstream& output_file, std::s
     output_file.close();
     std::cout<< "File read successfully" << std::endl;
     read_command();
-
 }// handle_file_read
 
 void connection_handler_new::handle_write(){
@@ -310,45 +310,9 @@ void connection_handler_new::handle_write(){
             throw err;
         }
     });
-}
+}// handle_write
 
 bool connection_handler_new::writing() const { return !buffer_seq_.empty();}
-
-
-void connection_handler_new::start(){
-    std::cout << "Connection created " << std::endl;
-    socket_.set_option(boost::asio::ip::tcp::no_delay(true));
-    std::ostringstream oss;
-    oss << "[++] Commands: " << std::endl;
-    oss << "\t login [username] [password] -- login to the Back-up Server " << std::endl;
-    oss << "\t close                       -- close the connetion to Server" << std::endl;
-    oss << "\t stop                        -- stop the Server" << std::endl;
-    oss << ">> ";
-    write_str(oss.str());
-    handle_read();
-}
-
-// socket creation
-boost::asio::ip::tcp::socket& connection_handler_new::get_socket(){
-    return socket_;
-}
-
-void connection_handler_new::close_(){
-    closing_ = true;
-    if(!writing())
-        shutdown_();
-}
-
-void connection_handler_new::shutdown_(){
-    if(!closed_){
-        closing_ = closed_ = true;
-        boost::system::error_code err;
-        socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, err);
-        socket_.close();
-        erase_callback(shared_from_this());
-    }
-}
-
 
 template <typename T>
 void connection_handler_new::write_(T&& t){
@@ -377,3 +341,41 @@ void connection_handler_new::write_str (std::string&& data){
     if(!writing())
         handle_write();
 }
+
+
+void connection_handler_new::start(){
+    std::cout << "Connection created " << std::endl;
+    socket_.set_option(boost::asio::ip::tcp::no_delay(true));
+    std::ostringstream oss;
+    oss << "[++] Commands: " << std::endl;
+    oss << "\t login [username] [password] -- login to the Back-up Server " << std::endl;
+    oss << "\t close                       -- close the connetion to Server" << std::endl;
+    oss << "\t stop                        -- stop the Server" << std::endl;
+    oss << ">> ";
+    if(DEBUG) write_str(oss.str());
+    handle_read();
+}
+
+// socket creation
+boost::asio::ip::tcp::socket& connection_handler_new::get_socket(){
+    return socket_;
+}
+
+void connection_handler_new::close_(){
+    closing_ = true;
+    if(!writing())
+        shutdown_();
+}
+
+void connection_handler_new::shutdown_(){
+    if(!closed_){
+        closing_ = closed_ = true;
+        boost::system::error_code err;
+        socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, err);
+        socket_.close();
+        erase_callback(shared_from_this());
+    }
+}
+
+
+
