@@ -28,7 +28,7 @@ public:
 
     void set_folder_path(const std::string&& path);
 
-    std::unordered_map<std::string, int> get_filesystem_status();
+    std::unordered_map<std::string, std::string> get_filesystem_status();
 
     //static std::optional<std::reference_wrapper<User>> check_login(const std::string&& username, const std::string&& password);
     static std::optional<User> check_login(const std::string&& username, const std::string&& password);

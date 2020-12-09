@@ -6,6 +6,7 @@
 #include <optional>
 #include <boost/filesystem.hpp>
 #include <iostream>
+#include "ChecksumAPI/Checksum.h"
 
 User::User(const std::string username, std::string folder_path):
         username(username), folder_path(folder_path){}
@@ -32,11 +33,11 @@ void User::set_folder_path(const std::string &&path) {
         folder_path = path;
 }
 
-std::unordered_map<std::string, int> User::get_filesystem_status() {
-    std::unordered_map<std::string, int> status;
+std::unordered_map<std::string, std::string> User::get_filesystem_status() {
+    std::unordered_map<std::string, std::string> status;
     for(auto entry: std::filesystem::recursive_directory_iterator(this->folder_path))
     //for(auto entry: std::filesystem::recursive_directory_iterator("../synchronized_folders/guido"))
-        status[entry.path().filename()] = 1;
+        status[entry.path().string()] = get_file_checksum(entry.path().string());;
     return status;
 }
 
