@@ -277,6 +277,7 @@ void connection_handler_new::handle_file_read(std::ofstream& output_file, std::s
         std::cout << "received " << output_file.tellp() << " bytes.\n";
     }
     output_file.close();
+    write_str("[CONFIRM] File read successfully\n");
     std::cout<< "File read successfully" << std::endl;
     read_command();
 }// handle_file_read
