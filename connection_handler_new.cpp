@@ -75,6 +75,7 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
         std::cout << "\n[socket "<< &this->socket_ << "]new File directory path " << path_boost.string() << std::endl;
 
         if(DEBUG) write_str("[+] Add File request received\n");
+        write_str("[SERVER_SUCCESS] Command received\n");
         boost::filesystem::create_directories(path_boost);
 
         std::stringstream sstream(file_size_);
@@ -103,7 +104,9 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
 void connection_handler_new::process_removeFile(const std::vector<std::string>& arguments){
     std::string path = arguments[1];
     boost::asio::post(*pool, [this, path] {
+        write_str("[SERVER_SUCCESS] Command received\n");
         std::filesystem::remove(logged_user->get_folder_path() + "/" + path);
+        write_str("[SERVER_SUCCESS] File deleted successfully\n");
     });
     if(DEBUG) write_str("[+] File removed\n>> ");
     read_command();
@@ -113,10 +116,11 @@ void connection_handler_new::process_removeFile(const std::vector<std::string>& 
 // checkFilesystemStatus
 void connection_handler_new::process_checkFilesystemStatus() {
     boost::asio::post(*pool, [this] {
+        write_str("[SERVER_SUCCESS] Command received\n");
+
         std::ostringstream oss;
         write_(logged_user.value().get_filesystem_status());
         if(DEBUG) write_str(">> ");
-
         read_command();
     });
 }// process_removeFile
@@ -124,6 +128,8 @@ void connection_handler_new::process_checkFilesystemStatus() {
 
 // login <user> <password> command
 void connection_handler_new::process_login(const std::vector<std::string>& arguments){
+    write_str("[SERVER_SUCCESS] Command received\n");
+
     if(arguments.size() == 3){
         std::string username = arguments[1];
         std::string password = arguments[2];
@@ -277,7 +283,7 @@ void connection_handler_new::handle_file_read(std::ofstream& output_file, std::s
         std::cout << "received " << output_file.tellp() << " bytes.\n";
     }
     output_file.close();
-    write_str("[CONFIRM] File read successfully\n");
+    write_str("[SERVER_SUCCESS] File read successfully\n");
     std::cout<< "File read successfully" << std::endl;
     read_command();
 }// handle_file_read
