@@ -8,6 +8,7 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <openssl/sha.h>
 
 #include "SHA256.h"
 
@@ -16,7 +17,10 @@
 
 std::string serialize_file(const std::string& file_path);
 
+std::string get_file_checksum_WRONG(const std::string& file_path);
+
 std::string get_file_checksum(const std::string& file_path);
+
 bool checksums_equal(const std::string& checksum1, const std::string& checksum2);
 
 #endif //REMOTEBACKUP_CLIENT_CHECKSUM_H
