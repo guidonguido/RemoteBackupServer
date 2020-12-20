@@ -118,7 +118,6 @@ void connection_handler_new::process_checkFilesystemStatus() {
     boost::asio::post(*pool, [this] {
         write_str("[SERVER_SUCCESS] Command received\n");
 
-        std::ostringstream oss;
         write_(logged_user.value().get_filesystem_status());
         if(DEBUG) write_str(">> ");
         read_command();
@@ -327,16 +326,19 @@ void connection_handler_new::write_(T&& t){
     std::ostringstream archive_stream;
     boost::archive::text_oarchive archive(archive_stream);
     archive << t;
-    std::string outbound_data_ = archive_stream.str();
+    std::string outbound_data_ = archive_stream.str() +"\n"; // \n Needed from the client in order to read correctly
 
-    // Format the header.
-    std::ostringstream header_stream;
-    header_stream << std::setw(8)
-                  << std::hex << outbound_data_.size();
-    std::string outbound_header_ = header_stream.str();
+    /**
+     * Format the header.
+     * Uncomment if needed
+     * In the RemoteBackup project, clients doesn't read any header
+     */
+    // std::ostringstream header_stream;
+    // header_stream << std::setw(8) << std::hex << outbound_data_.size();
+    // std::string outbound_header_ = header_stream.str();
 
     std::lock_guard l(buffers_mtx_);
-    buffers_[active_buffer_^1].push_back(std::move(outbound_header_));
+    // buffers_[active_buffer_^1].push_back(std::move(outbound_header_));
     buffers_[active_buffer_^1].push_back(std::move(outbound_data_));
     if(!writing())
         handle_write();
