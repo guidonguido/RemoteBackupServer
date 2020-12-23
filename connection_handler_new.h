@@ -101,7 +101,7 @@ public:
 
     void write_str (std::string&& data);
 
-    void write_file(std::ifstream&& source_file);
+    void write_file(std::ifstream& source_file, std::string path);
 
     void read_command();
     std::string read_string();

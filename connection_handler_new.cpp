@@ -89,7 +89,6 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
         std::cout << "\n[socket "<< &this->socket_ << "]new File directory path " << path_boost.string() << std::endl;
 
         if(DEBUG) write_str("[+] Add File request received\n");
-        std::this_thread::sleep_for(std::chrono::seconds(10));
         write_str("[SERVER_SUCCESS] Command received\n");
         boost::filesystem::create_directories(path_boost);
 
@@ -124,7 +123,7 @@ void connection_handler_new::process_getFile(const std::vector<std::string> &arg
     std::cout << "\n[socket "<< &this->socket_ << "]getFile request " << path_ << std::endl;
 
     boost::asio::post(*pool, [this, path_]{
-        std::ifstream input_file(path_);
+        std::ifstream input_file(path_, std::ios_base::binary | std::ios_base::ate);
         if(!input_file){
             write_str("[+] Error happened opening the file\n>> ");
             std::cout << "Error happened opening the file\n";
@@ -156,8 +155,11 @@ void connection_handler_new::process_getFile(const std::vector<std::string> &arg
             // busy wait
             std::string response = read_string();
 
+            //TODO Remove debugging prints
+            std::cout << "File size tellg() = " << input_file.tellg() << std::endl;
+            std::cout << "File size std::filesystem::file_size(path_) = " << std::filesystem::file_size(path_) << std::endl;
             // 3. Server sends the requested file
-            write_file(std::move(input_file));
+            write_file(input_file, path_);
             std::cout<< "File sent successfully" << std::endl;
 
         }
@@ -456,10 +458,9 @@ void connection_handler_new::write_str (std::string&& data){
         handle_write();
 }
 
-void connection_handler_new::write_file(std::ifstream&& source_file){
-    std::lock_guard l(buffers_mtx_);
+void connection_handler_new::write_file(std::ifstream& source_file, std::string path){
 
-    char* buf;
+    char* buf = new char[1024];
     boost::system::error_code error;
 
     size_t file_size = source_file.tellg();
@@ -472,7 +473,7 @@ void connection_handler_new::write_file(std::ifstream&& source_file){
     while(!source_file.eof()) {
         source_file.read(buf, (std::streamsize) 1024);
 
-        size_t bytes_read_from_file = source_file.gcount();
+        int bytes_read_from_file = source_file.gcount();
 
         if (bytes_read_from_file <= 0) {
             std::cout << "[ERROR] Read file error" << std::endl;
@@ -480,9 +481,12 @@ void connection_handler_new::write_file(std::ifstream&& source_file){
             //TODO handle this error
         }
 
-        buffers_[active_buffer_ ^ 1].push_back(std::move(std::string(buf)));
-        if (!writing())
-            handle_write();
+        boost::asio::write(this->socket_, boost::asio::buffer(
+                buf,source_file.gcount()), boost::asio::transfer_all(), error);
+        if(error) {
+            std::cout << "[ERROR] Send file error: " << error << std::endl;
+            //TODO lanciare un'eccezione?
+        }
 
         bytes_sent += bytes_read_from_file;
     }
