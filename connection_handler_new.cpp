@@ -6,6 +6,9 @@
 
 #define DEBUG 0
 
+/*
+ * Constructor
+ */
 connection_handler_new::connection_handler_new(std::shared_ptr<boost::asio::thread_pool> pool,
         std::shared_ptr<boost::asio::io_context> io_context,
         std::function<void(std::shared_ptr<connection_handler_new>)>& erase_callback,
@@ -19,9 +22,12 @@ connection_handler_new::connection_handler_new(std::shared_ptr<boost::asio::thre
                                             stop_callback(stop_callback),
                                             logged_user(std::nullopt){}
 
-
+/*
+ * Get a code representation of possible commands
+ */
 connection_handler_new::command_code connection_handler_new::hashit(std::string const& command){
     if(command == "addFile") return addFile;
+    if(command == "getFile") return getFile;
     if(command == "updateFile") return updateFile;
     if(command == "removeFile") return removeFile;
     if(command == "checkFilesystemStatus") return checkFilesystemStatus;
@@ -29,7 +35,9 @@ connection_handler_new::command_code connection_handler_new::hashit(std::string 
     return unknown;
 }
 
-// Separate command from its argument
+/*
+ * Separate command from its argument
+ */
 std::vector<std::string> connection_handler_new::parse_command(const std::string cmd){
     size_t prev = 0, pos = 0;
     std::vector<std::string> tokens;
@@ -46,6 +54,9 @@ std::vector<std::string> connection_handler_new::parse_command(const std::string
 
 }
 
+/*
+ * TODO alternative processing
+ */
 void connection_handler_new::process_unknown(const std::string& cmd, const std::string& argument){
     boost::asio::post(*pool, [this, cmd, argument] {
         std::ostringstream oss;
@@ -60,7 +71,10 @@ void connection_handler_new::process_unknown(const std::string& cmd, const std::
     read_command();
 }
 
-// addFile or updateFile <path> <file_size> commands
+/*
+ * commands:
+ * >> addFile or updateFile <path> <file_size>
+ */
 void connection_handler_new::process_addOrUpdateFile(const std::vector<std::string>& arguments){
     boost::asio::post(*pool, [this, arguments] {
 
@@ -75,6 +89,7 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
         std::cout << "\n[socket "<< &this->socket_ << "]new File directory path " << path_boost.string() << std::endl;
 
         if(DEBUG) write_str("[+] Add File request received\n");
+        std::this_thread::sleep_for(std::chrono::seconds(10));
         write_str("[SERVER_SUCCESS] Command received\n");
         boost::filesystem::create_directories(path_boost);
 
@@ -99,8 +114,19 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
     });
 }// process_addOrUpdateFile
 
+/*
+ * command:
+ * >> getFile <path>
+ */
+void connection_handler_new::process_getFile(const std::vector<std::string> &arguments) {
 
-// removeFile <path> command
+}
+
+
+/*
+ * command:
+ * >> removeFile <path> command
+ */
 void connection_handler_new::process_removeFile(const std::vector<std::string>& arguments){
     std::string path = arguments[1];
     boost::asio::post(*pool, [this, path] {
@@ -113,7 +139,9 @@ void connection_handler_new::process_removeFile(const std::vector<std::string>& 
 }// process_removeFile
 
 
-// checkFilesystemStatus
+/* command:
+ * >> checkFilesystemStatus
+ */
 void connection_handler_new::process_checkFilesystemStatus() {
     boost::asio::post(*pool, [this] {
         write_str("[SERVER_SUCCESS] Command received\n");
@@ -125,7 +153,10 @@ void connection_handler_new::process_checkFilesystemStatus() {
 }// process_removeFile
 
 
-// login <user> <password> command
+/*
+ * command:
+ * login <user> <password>
+ */
 void connection_handler_new::process_login(const std::vector<std::string>& arguments){
     write_str("[SERVER_SUCCESS] Command received\n");
 
@@ -143,7 +174,10 @@ void connection_handler_new::process_login(const std::vector<std::string>& argum
     }//if-else
 }// process_login
 
-
+/*
+ * After a command is read
+ * Parsing ad processing of known commands
+ */
 void connection_handler_new::process_command(std::string cmd){
 
     // split command and its arguments
@@ -185,16 +219,19 @@ void connection_handler_new::process_command(std::string cmd){
 
         switch(hashit(cmd)){
             case addFile:
-                //process_addOrUpdateFile(arguments);
                 process_addOrUpdateFile(arguments);
-                break;
-
-            case removeFile:
-                process_removeFile(arguments);
                 break;
 
             case updateFile:
                 process_addOrUpdateFile(arguments);
+                break;
+
+            case getFile:
+                process_getFile(arguments);
+                break;
+
+            case removeFile:
+                process_removeFile(arguments);
                 break;
 
             case unknown:
@@ -204,7 +241,6 @@ void connection_handler_new::process_command(std::string cmd){
     }
     else {
         if(DEBUG) write_str("You should insert at least one argument for the desired command\n>> ");
-
         read_command();
     }
 }

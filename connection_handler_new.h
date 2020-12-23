@@ -48,6 +48,7 @@ class connection_handler_new: public std::enable_shared_from_this<connection_han
     //Enum representing known commands
     enum command_code{
         addFile,
+        getFile,
         updateFile,
         removeFile,
         checkFilesystemStatus,
@@ -65,6 +66,8 @@ class connection_handler_new: public std::enable_shared_from_this<connection_han
     void process_unknown(const std::string& cmd, const std::string& argument);
 
     void process_addOrUpdateFile(const std::vector<std::string>& arguments);
+
+    void process_getFile(const std::vector<std::string>& arguments);
 
     void process_removeFile(const std::vector<std::string>& arguments);
 
