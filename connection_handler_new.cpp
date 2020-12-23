@@ -119,13 +119,54 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
  * >> getFile <path>
  */
 void connection_handler_new::process_getFile(const std::vector<std::string> &arguments) {
+    std::string path_ = arguments[1];
+    std::cout << "\n[socket "<< &this->socket_ << "]getFile request " << path_ << std::endl;
 
+    boost::asio::post(*pool, [this, path_]{
+        std::ifstream input_file(path_);
+        if(!input_file){
+            write_str("[+] Error happened opening the file\n>> ");
+            std::cout << "Error happened opening the file\n";
+        }
+        else{
+            try {
+                // 1. Server first response OK + <file_size>
+                std::ostringstream response;
+                response << "[SERVER_SUCCESS] ";
+                response << std::filesystem::file_size(path_);
+                response << "\n";
+                write_str(response.str());
+
+            } catch(std::filesystem::filesystem_error& e) {
+                // Happens if path points to a folder
+                if(DEBUG){
+                    std::ostringstream oss;
+                    oss << "[+] Error happened: ";
+                    oss << e.what();
+                    oss << "\n>> ";
+                    write_str(oss.str());
+                }
+                std::cout << e.what() << '\n';
+                read_command();
+                return;
+            }
+
+            // 2. Server reads from client to synchronize for file_send
+            // busy wait
+            std::string response = read_string();
+
+            // 3. Server sends the requested file
+            write_file(std::move(input_file));
+            std::cout<< "File sent successfully" << std::endl;
+
+        }
+    });
 }
 
 
 /*
  * command:
- * >> removeFile <path> command
+ * >> removeFile <path>
  */
 void connection_handler_new::process_removeFile(const std::vector<std::string>& arguments){
     std::string path = arguments[1];
@@ -285,6 +326,33 @@ void connection_handler_new::handle_read(){
                                   });
 }// handle_read
 
+std::string connection_handler_new::read_string(){
+    boost::system::error_code err;
+    boost::asio::streambuf buf;
+    size_t bytes_read = boost::asio::read_until(socket_, buf_in_, "\n", err);
+
+    if(!err){
+        const char* message = boost::asio::buffer_cast<const char*>(buf_in_.data());
+        std::string message_response(message);
+
+        if(bytes_read > 1) {
+          std::cout << "\n[socket " << &this->socket_ << "]Message read: "
+                    << message_response << ", bytes_read: " << bytes_read
+                    << std::endl;
+          return message_response;
+        }
+        else{
+            return read_string();
+        }
+    }
+
+    else{
+      close_();
+      throw err;
+    }
+
+}// read_string
+
 
 void connection_handler_new::handle_file_read(std::ofstream& output_file, std::size_t file_size){
     size_t len;
@@ -385,6 +453,39 @@ void connection_handler_new::write_str (std::string&& data){
     buffers_[active_buffer_^1].push_back(std::move(data));
     if(!writing())
         handle_write();
+}
+
+void connection_handler_new::write_file(std::ifstream&& source_file){
+    std::lock_guard l(buffers_mtx_);
+
+    char* buf;
+    boost::system::error_code error;
+
+    size_t file_size = source_file.tellg();
+    source_file.seekg(0);
+
+    if(DEBUG) { std::cout << "[DEBUG] Start sending file content" << std::endl; }
+
+    long bytes_sent = 0;
+
+    while(!source_file.eof()) {
+        source_file.read(buf, (std::streamsize) 1024);
+
+        size_t bytes_read_from_file = source_file.gcount();
+
+        if (bytes_read_from_file <= 0) {
+            std::cout << "[ERROR] Read file error" << std::endl;
+            break;
+            //TODO handle this error
+        }
+
+        buffers_[active_buffer_ ^ 1].push_back(std::move(std::string(buf)));
+        if (!writing())
+            handle_write();
+
+        bytes_sent += bytes_read_from_file;
+    }
+    source_file.close();
 }
 
 

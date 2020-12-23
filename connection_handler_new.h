@@ -101,11 +101,16 @@ public:
 
     void write_str (std::string&& data);
 
+    void write_file(std::ifstream&& source_file);
+
     void read_command();
+    std::string read_string();
 
     void handle_read();
 
-    // TO TEST!!
+    std::string handle_read_string();
+
+    // TODO
     // IDEA Trasforma la lettura in sincrona. La funzione sarà eseguito su un thread apposito e non c'è
     //      bisogno che venga eseguita la lettura async
     void handle_file_read(std::ofstream& output_file, size_t file_size);
