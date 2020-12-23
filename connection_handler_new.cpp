@@ -120,6 +120,7 @@ void connection_handler_new::process_addOrUpdateFile(const std::vector<std::stri
  */
 void connection_handler_new::process_getFile(const std::vector<std::string> &arguments) {
     std::string path_ = arguments[1];
+    path_ = logged_user->get_folder_path() +"/"  +path_;
     std::cout << "\n[socket "<< &this->socket_ << "]getFile request " << path_ << std::endl;
 
     boost::asio::post(*pool, [this, path_]{
