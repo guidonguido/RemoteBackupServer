@@ -162,6 +162,7 @@ void connection_handler_new::process_getFile(const std::vector<std::string> &arg
             write_file(input_file, path_);
             std::cout<< "File sent successfully" << std::endl;
 
+            read_command();
         }
     });
 }

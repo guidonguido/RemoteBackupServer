@@ -35,9 +35,15 @@ void User::set_folder_path(const std::string &&path) {
 
 std::unordered_map<std::string, std::string> User::get_filesystem_status() {
     std::unordered_map<std::string, std::string> status;
-    for(auto entry: std::filesystem::recursive_directory_iterator(this->folder_path))
-    //for(auto entry: std::filesystem::recursive_directory_iterator("../synchronized_folders/guido"))
-        status[entry.path().string()] = get_file_checksum(entry.path().string());;
+    std::string root_path(this->folder_path);
+
+
+    for(auto entry: std::filesystem::recursive_directory_iterator(this->folder_path)){
+        std::string relative_path = entry.path().string().substr(
+                root_path.length()+1, entry.path().string().length()-root_path.length()-1);
+        status[relative_path] = get_file_checksum(entry.path().string());
+    }
+
     return status;
 }
 
