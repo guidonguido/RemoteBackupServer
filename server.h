@@ -2,29 +2,29 @@
 // Created by guido on 28/11/20.
 //
 
-#ifndef REMOTEBACKUP_SERVER_SERVER_NEW_H
-#define REMOTEBACKUP_SERVER_SERVER_NEW_H
+#ifndef REMOTEBACKUP_SERVER_SERVER_H
+#define REMOTEBACKUP_SERVER_SERVER_H
 
 #include <iostream>
 #include <boost/asio.hpp>
-#include "connection_handler_new.h"
+#include "connection_handler.h"
 
-class server_new {
+class server {
 public:
 
 
     std::shared_ptr<boost::asio::thread_pool> pool;
     std::shared_ptr<boost::asio::io_context> io_context;
     boost::asio::ip::tcp::acceptor acceptor_;
-    std::unordered_set<std::shared_ptr<connection_handler_new>> active_connections;
+    std::unordered_set<std::shared_ptr<connection_handler>> active_connections;
 
-    server_new(int port);
+    server(int port);
 
     void run();
 
     void stop();
 
-    std::function<void(std::shared_ptr<connection_handler_new>)> erase_connection;
+    std::function<void(std::shared_ptr<connection_handler>)> erase_connection;
     std::function<void(void)> stop_server;
 
 
@@ -39,4 +39,4 @@ private:
 };
 
 
-#endif //REMOTEBACKUP_SERVER_SERVER_NEW_H
+#endif //REMOTEBACKUP_SERVER_SERVER_H

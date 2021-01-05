@@ -2,8 +2,8 @@
 // Created by guido on 28/11/20.
 //
 
-#ifndef REMOTEBACKUP_SERVER_CONNECTION_HANDLER_NEW_H
-#define REMOTEBACKUP_SERVER_CONNECTION_HANDLER_NEW_H
+#ifndef REMOTEBACKUP_SERVER_CONNECTION_HANDLER_H
+#define REMOTEBACKUP_SERVER_CONNECTION_HANDLER_H
 
 #include <iostream>
 #include <regex>
@@ -22,13 +22,13 @@
 #include "User.h"
 
 
-class connection_handler_new: public std::enable_shared_from_this<connection_handler_new> {
+class connection_handler: public std::enable_shared_from_this<connection_handler> {
 
     std::shared_ptr<boost::asio::thread_pool> pool;
     std::shared_ptr<boost::asio::io_context> io_context;
 
-    // Callback that deletes the connection from the list in server
-    std::function<void(std::shared_ptr<connection_handler_new>)> erase_callback;
+    // Callback that deletes the connection from the list in server_old
+    std::function<void(std::shared_ptr<connection_handler>)> erase_callback;
     std::function<void()> stop_callback;
 
     boost::asio::streambuf buf_in_;
@@ -79,10 +79,10 @@ class connection_handler_new: public std::enable_shared_from_this<connection_han
 public:
     boost::asio::ip::tcp::socket socket_;
 
-    connection_handler_new(std::shared_ptr<boost::asio::thread_pool> pool,
-            std::shared_ptr<boost::asio::io_context> io_context,
-            std::function<void(std::shared_ptr<connection_handler_new>)>& erase_callback,
-            std::function<void()>& stop_callback
+    connection_handler(std::shared_ptr<boost::asio::thread_pool> pool,
+                       std::shared_ptr<boost::asio::io_context> io_context,
+                       std::function<void(std::shared_ptr<connection_handler>)>& erase_callback,
+                       std::function<void()>& stop_callback
     );
 
 
@@ -120,9 +120,9 @@ public:
     bool writing() const;
 
 
-}; //connection_handler
+}; //connection_handler_old
 
 
 
 
-#endif //REMOTEBACKUP_SERVER_CONNECTION_HANDLER_NEW_H
+#endif //REMOTEBACKUP_SERVER_CONNECTION_HANDLER_H
