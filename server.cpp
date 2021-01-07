@@ -4,7 +4,7 @@
 
 #include "server.h"
 
-server::server(int port):
+server::server(int port) try:
         io_context(new boost::asio::io_context()),
         acceptor_(*io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(),port),
                 false){
@@ -19,6 +19,9 @@ server::server(int port):
     stop_server = [this](){
         stop();
     };
+} catch(const std::exception& e){
+    std::cerr << "Could not initalize server class. Error: " << e.what() << std::endl;
+    std::exit(-2);
 }
 
 void server::run(){
