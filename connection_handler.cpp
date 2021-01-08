@@ -351,8 +351,9 @@ void connection_handler::handle_read(){
               }
           }
           else{
-              close_();
-              throw err;
+            std::cout << "\n[socket "<< &this->socket_ << "] Closed the Connection" << std::endl;
+            close_();
+              // throw err;
           }
   });
 }// handle_read
@@ -405,7 +406,7 @@ void connection_handler::handle_file_read(std::ofstream& output_file, std::size_
             }
             if(!error){
                 if (len>0) {
-                    std::cout << "\n[socket "<< &this->socket_ << "] Parte di file: " << std::string(buf.begin(), buf.end()) << std::endl;
+                    if(DEBUG) std::cout << "\n[socket "<< &this->socket_ << "] Parte di file: " << std::string(buf.begin(), buf.end()) << std::endl;
                     bytes_to_read -= len;
                     output_file.write(std::string(buf.begin(), buf.end()).c_str(), (std::streamsize) len);
                 }
