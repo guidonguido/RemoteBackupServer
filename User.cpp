@@ -18,6 +18,7 @@ User& User::operator=(const User& source){
         this->username = source.username;
         this->folder_path = source.folder_path;
     }
+    return *this;
 }
 
 
