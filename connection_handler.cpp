@@ -232,15 +232,16 @@ void connection_handler::process_login(const std::vector<std::string>& arguments
             std::string password = arguments[2];
             logged_user = User::check_login(std::move(username), std::move(password));
             if(logged_user.has_value()){
-                if(DEBUG) write_str("Login SUCCESS\n[" + logged_user->get_username() + "] >> ");
+                write_str("[SERVER_SUCCESS] Logged user" + logged_user->get_username() + "]\n");
             }else{
-                if(DEBUG) write_str("Login FAILED, try again inserting correct username and password\n>> ");
+                write_str("[SERVER_ERROR] wrong username or password\n");
             }
         }else{
-            if(DEBUG) write_str("Login format is incorrect, try again inserting both username and password\n>> ");
+            write_str("[SERVER_ERROR] Login format is incorrect, try again inserting both username and password\n");
         }//if-else
     } catch (std::exception& e) {
         std::cout << "[ERROR] process_login Error: " << e.what() << std::endl;
+        write_str("[SERVER_ERROR] Generic login error, closing connection\n");
         close_();
         throw e;
     }
