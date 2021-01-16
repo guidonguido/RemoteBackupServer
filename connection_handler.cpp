@@ -225,7 +225,7 @@ void connection_handler::process_checkFilesystemStatus() {
  */
 void connection_handler::process_login(const std::vector<std::string>& arguments){
     try{
-        write_str("[SERVER_SUCCESS] Command received\n");
+        //write_str("[SERVER_SUCCESS] Command received\n");
 
         if(arguments.size() == 3){
             std::string username = arguments[1];
