@@ -61,6 +61,7 @@ std::optional<User> User::check_login(const std::string&& username, const std::s
 
     std:: string username_, password_;
     std::ostringstream path_;
+    std::cout << "Findind user..." << std::endl;
 
     // Find a row in LOGIN_INFO that matches username ad password
     while(std::getline(ifile, line)){
@@ -71,6 +72,8 @@ std::optional<User> User::check_login(const std::string&& username, const std::s
         password_ = line.substr(line.find_first_not_of(' '), line.find(' '));
         line.erase(0, line.find(' '));
         line.erase(0, line.find_first_not_of(' '));
+
+        std::cout << "Username: " << username << " , Password: " << password << std::endl;
 
         if(username_ == username && password_ == password){
             path_ << "../synchronized_folders/";
