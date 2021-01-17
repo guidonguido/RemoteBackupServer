@@ -61,7 +61,7 @@ std::optional<User> User::check_login(const std::string&& username, const std::s
 
     std:: string username_, password_;
     std::ostringstream path_;
-    std::cout << "Findind user..." << std::endl;
+    std::cout << "Findind user... from " << std::filesystem::current_path().string() << std::endl;
 
     // Find a row in LOGIN_INFO that matches username ad password
     while(std::getline(ifile, line)){
