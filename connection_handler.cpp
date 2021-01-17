@@ -231,6 +231,7 @@ void connection_handler::process_login(const std::vector<std::string>& arguments
             std::string username = arguments[1];
             std::string password = arguments[2];
             logged_user = User::check_login(std::move(username), std::move(password));
+            std::cout << "[DEBUG] process_login" << std::endl;
             if(logged_user.has_value()){
                 write_str("[SERVER_SUCCESS] Logged user" + logged_user->get_username() + "]\n");
             }else{
